@@ -1028,7 +1028,7 @@ class PriceUpdater {
         this.priceData = null;
         this.cacheKey = 'poePriceData';
         this.cacheExpiryKey = 'poePriceDataExpiry';
-        this.cacheDuration = 24 * 60 * 60 * 1000; // 1 day in milliseconds
+        this.cacheDuration = 60 * 60 * 1000; // 1 hour in milliseconds
     }
 
     async fetchWithCors(url) {
@@ -1125,6 +1125,7 @@ class PriceUpdater {
             }
             
             this.priceData = JSON.parse(cachedData);
+            // Don't update the lastUpdated timestamp - keep the original from when data was fetched
             console.log('Loaded price data from cache');
             return true;
         } catch (error) {
@@ -1234,13 +1235,16 @@ class PriceUpdater {
         
         // Add last updated date
         const lastUpdated = document.createElement('p');
-        lastUpdated.textContent = `Last Updated: ${new Date(this.priceData.lastUpdated).toLocaleString()}`;
+        const date = new Date(this.priceData.lastUpdated);
+        const options = { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: 'numeric'
+        };
+        lastUpdated.textContent = `Last Updated: ${date.toLocaleDateString('en-US', options)}`;
         card.appendChild(lastUpdated);
-        
-        // Add divine price
-        const divinePrice = document.createElement('p');
-        divinePrice.textContent = `Divine Price: ${this.priceData.divinePrice} chaos`;
-        card.appendChild(divinePrice);
         
         // Add item count
         const itemCount = document.createElement('p');
@@ -1413,7 +1417,7 @@ class PriceUpdater {
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
         
-        const headers = ['Item Name', 'Chaos Value', 'Base Dust', 'Adjusted Dust', 'Dust/Chaos Ratio'];
+        const headers = ['Item Name', 'Chaos Value', 'Estimated Dust', 'Dust/Chaos Ratio'];
         headers.forEach(headerText => {
             const th = document.createElement('th');
             th.textContent = headerText;
@@ -1435,7 +1439,7 @@ class PriceUpdater {
             const n = Math.max(0, quality);
             
             // Calculate adjusted dust value using the formula
-            return Math.round(baseDustValue * Math.pow(10, (20 - (84 - t))) * (1 + n / 100));
+            return Math.round(100 * baseDustValue * (20 - (84 - t)) * (1 + n / 100));
         };
         
         // Function to update the table with filtered items
@@ -1495,16 +1499,13 @@ class PriceUpdater {
                 nameCell.textContent = item.name;
                 
                 const chaosCell = document.createElement('td');
-                chaosCell.textContent = item.chaosValue.toFixed(2);
+                chaosCell.textContent = Math.round(item.chaosValue);
                 
-                const baseDustCell = document.createElement('td');
-                baseDustCell.textContent = item.dustValue.toFixed(2);
-                
-                const adjustedDustCell = document.createElement('td');
-                adjustedDustCell.textContent = adjustedDustValue.toFixed(2);
+                const estimatedDustCell = document.createElement('td');
+                estimatedDustCell.textContent = Math.round(adjustedDustValue);
                 
                 const ratioCell = document.createElement('td');
-                ratioCell.textContent = ratio.toFixed(2);
+                ratioCell.textContent = Math.round(ratio);
                 
                 // Add color coding to ratio cell based on value
                 if (ratio > 2) {
@@ -1518,8 +1519,7 @@ class PriceUpdater {
                 // Add cells to row
                 row.appendChild(nameCell);
                 row.appendChild(chaosCell);
-                row.appendChild(baseDustCell);
-                row.appendChild(adjustedDustCell);
+                row.appendChild(estimatedDustCell);
                 row.appendChild(ratioCell);
                 
                 // Add row to table
