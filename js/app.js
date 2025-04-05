@@ -95,12 +95,20 @@ class PoeDataAnalyzer {
 
 // UI Handling
 document.addEventListener('DOMContentLoaded', () => {
-    const analyzer = new PoeDataAnalyzer();
+    // Get DOM elements
     const analyzeBtn = document.getElementById('analyzeBtn');
     const loadingDiv = document.getElementById('loading');
     const errorDiv = document.getElementById('error');
     const resultsTable = document.getElementById('resultsTable');
-    const resultsBody = resultsTable.querySelector('tbody');
+    const resultsBody = resultsTable?.querySelector('tbody');
+
+    // Check if all required elements exist
+    if (!analyzeBtn || !loadingDiv || !errorDiv || !resultsTable || !resultsBody) {
+        console.error('Required DOM elements not found');
+        return;
+    }
+
+    const analyzer = new PoeDataAnalyzer();
 
     analyzeBtn.addEventListener('click', async () => {
         try {
@@ -130,6 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             resultsTable.style.display = 'table';
         } catch (error) {
+            console.error('Error in analyze button click handler:', error);
             errorDiv.textContent = `Error: ${error.message}`;
             errorDiv.style.display = 'block';
         } finally {
