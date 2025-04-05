@@ -3,6 +3,7 @@ class PriceUpdater {
         this.poeNinjaBaseUrl = 'https://poe.ninja/api/data';
         this.corsProxyUrl = 'https://corsproxy.io/?';
         this.priceDataUrl = 'data/price_data.json';
+        this.league = 'Phrecia';
     }
 
     async fetchWithCors(url) {
@@ -20,7 +21,7 @@ class PriceUpdater {
 
     async fetchDivinePrice() {
         try {
-            const data = await this.fetchWithCors(`${this.poeNinjaBaseUrl}/currencyoverview?league=Affliction`);
+            const data = await this.fetchWithCors(`${this.poeNinjaBaseUrl}/currencyoverview?league=${this.league}`);
             const divineOrb = data.lines.find(currency => currency.currencyTypeName === 'Divine Orb');
             return divineOrb ? divineOrb.chaosEquivalent : 0;
         } catch (error) {
@@ -31,8 +32,21 @@ class PriceUpdater {
 
     async fetchUniqueItems() {
         try {
-            const data = await this.fetchWithCors(`${this.poeNinjaBaseUrl}/itemoverview?league=Affliction&type=UniqueWeapon,UniqueArmour,UniqueAccessory`);
-            return data.lines;
+            // Fetch weapons, armour, and accessories separately
+            const [weapons, armour, accessories] = await Promise.all([
+                this.fetchWithCors(`${this.poeNinjaBaseUrl}/itemoverview?league=${this.league}&type=UniqueWeapon`),
+                this.fetchWithCors(`${this.poeNinjaBaseUrl}/itemoverview?league=${this.league}&type=UniqueArmour`),
+                this.fetchWithCors(`${this.poeNinjaBaseUrl}/itemoverview?league=${this.league}&type=UniqueAccessory`)
+            ]);
+            
+            // Combine all items
+            const allItems = [
+                ...(weapons.lines || []),
+                ...(armour.lines || []),
+                ...(accessories.lines || [])
+            ];
+            
+            return allItems;
         } catch (error) {
             console.error('Error fetching unique items:', error);
             throw error;
@@ -52,7 +66,7 @@ class PriceUpdater {
             // Process items
             const uniqueItems = items.map(item => {
                 // Convert divine price to chaos if needed
-                let priceInChaos = item.chaosValue;
+                let priceInChaos = item.chaosValue || 0;
                 if (item.divineValue > 0) {
                     priceInChaos = item.divineValue * divinePrice;
                 }
@@ -92,48 +106,58 @@ class PriceUpdater {
     }
 }
 
-// Create a button to trigger the update
-document.addEventListener('DOMContentLoaded', () => {
-    const container = document.createElement('div');
-    container.className = 'card mb-4';
-    
-    const cardBody = document.createElement('div');
-    cardBody.className = 'card-body';
-    
-    const updateButton = document.createElement('button');
-    updateButton.className = 'btn btn-secondary';
-    updateButton.textContent = 'Update Price Data';
-    updateButton.addEventListener('click', async () => {
-        try {
-            updateButton.disabled = true;
-            updateButton.textContent = 'Updating...';
-            
-            const updater = new PriceUpdater();
-            await updater.updatePrices();
-            
-            updateButton.textContent = 'Update Complete!';
-            setTimeout(() => {
-                updateButton.textContent = 'Update Price Data';
-                updateButton.disabled = false;
-            }, 3000);
-        } catch (error) {
-            console.error('Error:', error);
-            updateButton.textContent = 'Update Failed';
-            setTimeout(() => {
-                updateButton.textContent = 'Update Price Data';
-                updateButton.disabled = false;
-            }, 3000);
+// Initialize the price updater on page load
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        console.log('Initializing price updater...');
+        const updater = new PriceUpdater();
+        
+        // Create a status indicator
+        const statusContainer = document.createElement('div');
+        statusContainer.className = 'card mb-4';
+        
+        const cardBody = document.createElement('div');
+        cardBody.className = 'card-body';
+        
+        const statusText = document.createElement('p');
+        statusText.className = 'mb-0';
+        statusText.textContent = 'Updating price data...';
+        
+        cardBody.appendChild(statusText);
+        statusContainer.appendChild(cardBody);
+        
+        // Insert the status indicator after the analyze button
+        const analyzeCard = document.querySelector('.card');
+        if (analyzeCard) {
+            analyzeCard.parentNode.insertBefore(statusContainer, analyzeCard.nextSibling);
+        } else {
+            document.body.appendChild(statusContainer);
         }
-    });
-    
-    cardBody.appendChild(updateButton);
-    container.appendChild(cardBody);
-    
-    // Insert the update button after the analyze button
-    const analyzeCard = document.querySelector('.card');
-    if (analyzeCard) {
-        analyzeCard.parentNode.insertBefore(container, analyzeCard.nextSibling);
-    } else {
-        document.body.appendChild(container);
+        
+        // Update prices
+        await updater.updatePrices();
+        
+        // Update status
+        statusText.textContent = 'Price data updated successfully!';
+        statusText.className = 'mb-0 text-success';
+        
+        // Remove status after 5 seconds
+        setTimeout(() => {
+            statusContainer.remove();
+        }, 5000);
+    } catch (error) {
+        console.error('Error initializing price updater:', error);
+        
+        // Show error status
+        const errorContainer = document.createElement('div');
+        errorContainer.className = 'alert alert-danger mt-3';
+        errorContainer.textContent = 'Failed to update price data. Please try again later.';
+        
+        const analyzeCard = document.querySelector('.card');
+        if (analyzeCard) {
+            analyzeCard.parentNode.insertBefore(errorContainer, analyzeCard.nextSibling);
+        } else {
+            document.body.appendChild(errorContainer);
+        }
     }
 }); 
