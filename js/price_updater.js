@@ -1024,42 +1024,8 @@ class PriceUpdater {
     constructor() {
         this.poeNinjaBaseUrl = 'https://poe.ninja/api/data';
         this.corsProxyUrl = 'https://corsproxy.io/?';
-        this.priceDataUrl = 'data/price_data.json';
         this.league = 'Phrecia';
         this.priceData = null;
-        this.dustValues = null;
-    }
-
-    async loadDustValues() {
-        try {
-            const response = await fetch('data/dust-values.csv');
-            const csvText = await response.text();
-            
-            // Parse CSV
-            const lines = csvText.split('\n');
-            const headers = lines[0].split(',');
-            const nameIndex = headers.indexOf('name');
-            const dustValIndex = headers.indexOf('dustVal');
-            
-            this.dustValues = {};
-            for (let i = 1; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (!line) continue;
-                
-                const values = line.split(',');
-                const name = values[nameIndex];
-                const dustVal = parseFloat(values[dustValIndex]);
-                
-                if (name && !isNaN(dustVal)) {
-                    this.dustValues[name] = dustVal;
-                }
-            }
-            
-            console.log(`Loaded ${Object.keys(this.dustValues).length} dust values`);
-        } catch (error) {
-            console.error('Error loading dust values:', error);
-            throw error;
-        }
     }
 
     async fetchWithCors(url) {
@@ -1111,9 +1077,6 @@ class PriceUpdater {
 
     async updatePrices() {
         try {
-            // Load dust values first
-            await this.loadDustValues();
-            
             // Get divine price
             const divinePrice = await this.fetchDivinePrice();
             console.log(`Current Divine price: ${divinePrice} chaos`);
@@ -1130,8 +1093,8 @@ class PriceUpdater {
                     priceInChaos = item.divineValue * divinePrice;
                 }
 
-                // Get dust value
-                const dustValue = this.dustValues[item.name] || 0;
+                // Get dust value from embedded DUST_VALUES object
+                const dustValue = DUST_VALUES[item.name] || 0;
 
                 return {
                     name: item.name,
