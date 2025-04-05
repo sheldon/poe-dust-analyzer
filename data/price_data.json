@@ -1,106 +1,85 @@
 {
-  "divinePrice": 250.0,
   "lastUpdated": "2023-04-05",
   "uniqueItems": [
     {
       "name": "Tabula Rasa",
-      "chaosValue": 5.0,
-      "divineValue": 0.0
+      "chaosValue": 5.0
     },
     {
       "name": "Goldrim",
-      "chaosValue": 3.0,
-      "divineValue": 0.0
+      "chaosValue": 3.0
     },
     {
       "name": "Wanderlust",
-      "chaosValue": 2.0,
-      "divineValue": 0.0
+      "chaosValue": 2.0
     },
     {
       "name": "Karui Ward",
-      "chaosValue": 1.0,
-      "divineValue": 0.0
+      "chaosValue": 1.0
     },
     {
       "name": "Lifesprig",
-      "chaosValue": 1.0,
-      "divineValue": 0.0
+      "chaosValue": 1.0
     },
     {
       "name": "Wurm's Molt",
-      "chaosValue": 1.0,
-      "divineValue": 0.0
+      "chaosValue": 1.0
     },
     {
       "name": "Meginord's Girdle",
-      "chaosValue": 1.0,
-      "divineValue": 0.0
+      "chaosValue": 1.0
     },
     {
       "name": "Blackheart",
-      "chaosValue": 1.0,
-      "divineValue": 0.0
+      "chaosValue": 1.0
     },
     {
       "name": "Le Heup of All",
-      "chaosValue": 1.0,
-      "divineValue": 0.0
+      "chaosValue": 1.0
     },
     {
       "name": "Goldwyrm",
-      "chaosValue": 1.0,
-      "divineValue": 0.0
+      "chaosValue": 1.0
     },
     {
       "name": "Asenath's Gentle Touch",
-      "chaosValue": 15.0,
-      "divineValue": 0.0
+      "chaosValue": 15.0
     },
     {
       "name": "The Taming",
-      "chaosValue": 20.0,
-      "divineValue": 0.0
+      "chaosValue": 20.0
     },
     {
       "name": "Cospri's Will",
-      "chaosValue": 25.0,
-      "divineValue": 0.0
+      "chaosValue": 25.0
     },
     {
       "name": "Shavronne's Wrappings",
-      "chaosValue": 0.0,
-      "divineValue": 1.5
+      "chaosValue": 375.0
     },
     {
       "name": "Headhunter",
-      "chaosValue": 0.0,
-      "divineValue": 100.0
+      "chaosValue": 25000.0
     },
     {
       "name": "Mageblood",
-      "chaosValue": 0.0,
-      "divineValue": 200.0
+      "chaosValue": 50000.0
     },
     {
       "name": "The Squire",
-      "chaosValue": 0.0,
-      "divineValue": 50.0
+      "chaosValue": 12500.0
     },
     {
       "name": "Aegis Aurora",
-      "chaosValue": 0.0,
-      "divineValue": 5.0
+      "chaosValue": 1250.0
     },
     {
       "name": "Atziri's Acuity",
-      "chaosValue": 0.0,
-      "divineValue": 10.0
+      "chaosValue": 2500.0
     },
     {
       "name": "Crown of the Inward Eye",
-      "chaosValue": 0.0,
-      "divineValue": 2.0
+      "chaosValue": 500.0
     }
   ]
 } 

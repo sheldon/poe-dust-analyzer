@@ -6,22 +6,6 @@ class PoeDataAnalyzer {
         this.priceData = null;
     }
 
-    async getDivinePrice() {
-        try {
-            // Get price data from static JSON file
-            if (!this.priceData) {
-                const response = await fetch(this.priceDataUrl);
-                this.priceData = await response.json();
-            }
-            
-            // Get divine price from static data
-            return this.priceData.divinePrice || 0;
-        } catch (error) {
-            console.error('Error fetching divine price:', error);
-            throw error;
-        }
-    }
-
     async getUniqueItems() {
         try {
             // Get price data from static JSON file
@@ -71,9 +55,6 @@ class PoeDataAnalyzer {
 
     async analyzeItems() {
         try {
-            // Get divine price for conversion
-            const divinePrice = await this.getDivinePrice();
-            
             // Get unique items
             const items = await this.getUniqueItems();
             
@@ -85,11 +66,7 @@ class PoeDataAnalyzer {
             for (const item of items) {
                 const name = item.name;
                 if (dustValues[name]) {
-                    // Convert price to chaos if in divines
-                    let priceInChaos = item.chaosValue;
-                    if (item.divineValue > 0) {
-                        priceInChaos = item.divineValue * divinePrice;
-                    }
+                    const priceInChaos = item.chaosValue;
                     
                     if (priceInChaos > 0) {  // Avoid division by zero
                         const dustPerChaos = dustValues[name] / priceInChaos;
@@ -107,7 +84,6 @@ class PoeDataAnalyzer {
             analyzedItems.sort((a, b) => b.dustPerChaos - a.dustPerChaos);
             
             return {
-                divinePrice,
                 items: analyzedItems
             };
         } catch (error) {
@@ -123,7 +99,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const analyzeBtn = document.getElementById('analyzeBtn');
     const loadingDiv = document.getElementById('loading');
     const errorDiv = document.getElementById('error');
-    const divinePriceDiv = document.getElementById('divinePrice');
     const resultsTable = document.getElementById('resultsTable');
     const resultsBody = resultsTable.querySelector('tbody');
 
@@ -132,22 +107,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Show loading state
             loadingDiv.style.display = 'block';
             errorDiv.style.display = 'none';
-            divinePriceDiv.style.display = 'none';
             resultsTable.style.display = 'none';
             analyzeBtn.disabled = true;
 
             // Perform analysis
             const results = await analyzer.analyzeItems();
 
-            // Display divine price
-            divinePriceDiv.textContent = `Current Divine price: ${results.divinePrice.toFixed(2)} chaos`;
-            divinePriceDiv.style.display = 'block';
-
             // Clear previous results
             resultsBody.innerHTML = '';
 
-            // Display top 20 items
-            results.items.slice(0, 20).forEach(item => {
+            // Display all items
+            results.items.forEach(item => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${item.name}</td>
