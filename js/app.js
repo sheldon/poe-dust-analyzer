@@ -93,18 +93,28 @@ class PoeDataAnalyzer {
     }
 }
 
-// UI Handling
-document.addEventListener('DOMContentLoaded', () => {
+// Wait for the DOM to be fully loaded
+function initializeApp() {
     // Get DOM elements
     const analyzeBtn = document.getElementById('analyzeBtn');
     const loadingDiv = document.getElementById('loading');
     const errorDiv = document.getElementById('error');
     const resultsTable = document.getElementById('resultsTable');
-    const resultsBody = resultsTable?.querySelector('tbody');
-
+    
     // Check if all required elements exist
-    if (!analyzeBtn || !loadingDiv || !errorDiv || !resultsTable || !resultsBody) {
-        console.error('Required DOM elements not found');
+    if (!analyzeBtn || !loadingDiv || !errorDiv || !resultsTable) {
+        console.error('Required DOM elements not found:', {
+            analyzeBtn: !!analyzeBtn,
+            loadingDiv: !!loadingDiv,
+            errorDiv: !!errorDiv,
+            resultsTable: !!resultsTable
+        });
+        return;
+    }
+
+    const resultsBody = resultsTable.querySelector('tbody');
+    if (!resultsBody) {
+        console.error('Results table body not found');
         return;
     }
 
@@ -146,4 +156,11 @@ document.addEventListener('DOMContentLoaded', () => {
             analyzeBtn.disabled = false;
         }
     });
-}); 
+}
+
+// Make sure the DOM is loaded before initializing
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    initializeApp();
+} 
