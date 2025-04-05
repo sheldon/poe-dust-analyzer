@@ -194,6 +194,11 @@ textarea.form-control {
     box-shadow: 0 0 3px rgba(74, 144, 226, 0.5);
 }
 
+/* Item Level and Quality specific styles */
+#item-level, #item-quality {
+    width: 70px;
+}
+
 /* Table Styling */
 .items-table {
     width: 100%;
@@ -252,10 +257,17 @@ textarea.form-control {
 
 .items-table td:nth-child(2),
 .items-table td:nth-child(3),
-.items-table td:nth-child(4) {
+.items-table td:nth-child(4),
+.items-table td:nth-child(5) {
     text-align: right;
     font-family: monospace;
     font-size: 13px;
+}
+
+/* Highlight adjusted dust value */
+.items-table td:nth-child(4) {
+    font-weight: 600;
+    color: #4a90e2;
 }
 
 /* Ratio cell color coding */

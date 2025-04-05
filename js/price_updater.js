@@ -1347,9 +1347,60 @@ class PriceUpdater {
         dustFilterGroup.appendChild(minDustFilterContainer);
         dustFilterGroup.appendChild(maxDustFilterContainer);
         
+        // Create item level and quality group
+        const itemLevelQualityGroup = document.createElement('div');
+        itemLevelQualityGroup.className = 'filter-group-container';
+        
+        const itemLevelQualityTitle = document.createElement('h4');
+        itemLevelQualityTitle.textContent = 'Item Properties';
+        itemLevelQualityGroup.appendChild(itemLevelQualityTitle);
+        
+        // Create item level filter
+        const itemLevelFilterContainer = document.createElement('div');
+        itemLevelFilterContainer.className = 'filter-group';
+        
+        const itemLevelLabel = document.createElement('label');
+        itemLevelLabel.textContent = 'Item Level:';
+        itemLevelLabel.htmlFor = 'item-level';
+        
+        const itemLevelInput = document.createElement('input');
+        itemLevelInput.type = 'number';
+        itemLevelInput.id = 'item-level';
+        itemLevelInput.min = '65';
+        itemLevelInput.max = '100';
+        itemLevelInput.value = '84';
+        itemLevelInput.step = '1';
+        
+        itemLevelFilterContainer.appendChild(itemLevelLabel);
+        itemLevelFilterContainer.appendChild(itemLevelInput);
+        
+        // Create quality filter
+        const qualityFilterContainer = document.createElement('div');
+        qualityFilterContainer.className = 'filter-group';
+        
+        const qualityLabel = document.createElement('label');
+        qualityLabel.textContent = 'Quality:';
+        qualityLabel.htmlFor = 'item-quality';
+        
+        const qualityInput = document.createElement('input');
+        qualityInput.type = 'number';
+        qualityInput.id = 'item-quality';
+        qualityInput.min = '0';
+        qualityInput.max = '20';
+        qualityInput.value = '0';
+        qualityInput.step = '1';
+        
+        qualityFilterContainer.appendChild(qualityLabel);
+        qualityFilterContainer.appendChild(qualityInput);
+        
+        // Add item level and quality filters to group
+        itemLevelQualityGroup.appendChild(itemLevelFilterContainer);
+        itemLevelQualityGroup.appendChild(qualityFilterContainer);
+        
         // Add filter groups to container
         filterContainer.appendChild(chaosFilterGroup);
         filterContainer.appendChild(dustFilterGroup);
+        filterContainer.appendChild(itemLevelQualityGroup);
         
         // Add filter container to card
         card.appendChild(filterContainer);
@@ -1362,7 +1413,7 @@ class PriceUpdater {
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
         
-        const headers = ['Item Name', 'Chaos Value', 'Dust Value', 'Dust/Chaos Ratio'];
+        const headers = ['Item Name', 'Chaos Value', 'Base Dust', 'Adjusted Dust', 'Dust/Chaos Ratio'];
         headers.forEach(headerText => {
             const th = document.createElement('th');
             th.textContent = headerText;
@@ -1376,6 +1427,17 @@ class PriceUpdater {
         const tbody = document.createElement('tbody');
         tbody.id = 'items-table-body';
         
+        // Function to calculate adjusted dust value based on item level and quality
+        const calculateAdjustedDustValue = (baseDustValue, itemLevel, quality) => {
+            // Ensure item level is between 65 and 84
+            const t = Math.min(Math.max(itemLevel, 65), 84);
+            // Ensure quality is non-negative
+            const n = Math.max(0, quality);
+            
+            // Calculate adjusted dust value using the formula
+            return Math.round(baseDustValue * Math.pow(10, (20 - (84 - t))) * (1 + n / 100));
+        };
+        
         // Function to update the table with filtered items
         const updateTable = () => {
             // Clear table body
@@ -1386,12 +1448,18 @@ class PriceUpdater {
             const maxChaos = parseFloat(maxChaosInput.value) || Infinity;
             const minDust = parseFloat(minDustInput.value) || 0;
             const maxDust = parseFloat(maxDustInput.value) || Infinity;
+            const itemLevel = parseInt(itemLevelInput.value) || 84;
+            const quality = parseInt(qualityInput.value) || 0;
             
             // Sort items by dust per chaos ratio (highest first)
             const sortedItems = [...this.priceData.uniqueItems].sort((a, b) => {
+                // Calculate adjusted dust values
+                const adjustedDustA = calculateAdjustedDustValue(a.dustValue, itemLevel, quality);
+                const adjustedDustB = calculateAdjustedDustValue(b.dustValue, itemLevel, quality);
+                
                 // Calculate dust per chaos ratio
-                const ratioA = a.chaosValue > 0 ? a.dustValue / a.chaosValue : 0;
-                const ratioB = b.chaosValue > 0 ? b.dustValue / b.chaosValue : 0;
+                const ratioA = a.chaosValue > 0 ? adjustedDustA / a.chaosValue : 0;
+                const ratioB = b.chaosValue > 0 ? adjustedDustB / b.chaosValue : 0;
                 
                 // Sort in descending order
                 return ratioB - ratioA;
@@ -1401,9 +1469,12 @@ class PriceUpdater {
             let filteredCount = 0;
             
             sortedItems.forEach((item, index) => {
+                // Calculate adjusted dust value
+                const adjustedDustValue = calculateAdjustedDustValue(item.dustValue, itemLevel, quality);
+                
                 // Apply filters
                 if (item.chaosValue < minChaos || item.chaosValue > maxChaos || 
-                    item.dustValue < minDust || item.dustValue > maxDust) {
+                    adjustedDustValue < minDust || adjustedDustValue > maxDust) {
                     return; // Skip this item
                 }
                 
@@ -1417,7 +1488,7 @@ class PriceUpdater {
                 }
                 
                 // Calculate dust per chaos ratio
-                const ratio = item.chaosValue > 0 ? (item.dustValue / item.chaosValue) : 0;
+                const ratio = item.chaosValue > 0 ? adjustedDustValue / item.chaosValue : 0;
                 
                 // Create cells
                 const nameCell = document.createElement('td');
@@ -1426,8 +1497,11 @@ class PriceUpdater {
                 const chaosCell = document.createElement('td');
                 chaosCell.textContent = item.chaosValue.toFixed(2);
                 
-                const dustCell = document.createElement('td');
-                dustCell.textContent = item.dustValue.toFixed(2);
+                const baseDustCell = document.createElement('td');
+                baseDustCell.textContent = item.dustValue.toFixed(2);
+                
+                const adjustedDustCell = document.createElement('td');
+                adjustedDustCell.textContent = adjustedDustValue.toFixed(2);
                 
                 const ratioCell = document.createElement('td');
                 ratioCell.textContent = ratio.toFixed(2);
@@ -1444,7 +1518,8 @@ class PriceUpdater {
                 // Add cells to row
                 row.appendChild(nameCell);
                 row.appendChild(chaosCell);
-                row.appendChild(dustCell);
+                row.appendChild(baseDustCell);
+                row.appendChild(adjustedDustCell);
                 row.appendChild(ratioCell);
                 
                 // Add row to table
@@ -1460,6 +1535,8 @@ class PriceUpdater {
         maxChaosInput.addEventListener('input', updateTable);
         minDustInput.addEventListener('input', updateTable);
         maxDustInput.addEventListener('input', updateTable);
+        itemLevelInput.addEventListener('input', updateTable);
+        qualityInput.addEventListener('input', updateTable);
         
         // Initial table update
         updateTable();
