@@ -1026,14 +1026,29 @@ class PriceUpdater {
         this.corsProxyUrl = 'https://corsproxy.io/?';
         this.league = 'Phrecia';
         this.priceData = null;
+        this.cacheKey = 'poePriceData';
+        this.cacheExpiryKey = 'poePriceDataExpiry';
+        this.cacheDuration = 24 * 60 * 60 * 1000; // 1 day in milliseconds
     }
 
     async fetchWithCors(url) {
         try {
-            const response = await fetch(this.corsProxyUrl + encodeURIComponent(url));
+            const proxyUrl = `${this.corsProxyUrl}url=${encodeURIComponent(url)}`;
+            console.log(`Fetching through CORS proxy: ${proxyUrl}`);
+            
+            const response = await fetch(proxyUrl);
+            
             if (!response.ok) {
+                console.error(`HTTP error! status: ${response.status}`, response.statusText);
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
+            
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                console.error(`Expected JSON response but got: ${contentType}`);
+                throw new Error(`Expected JSON response but got: ${contentType}`);
+            }
+            
             return await response.json();
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -1043,9 +1058,25 @@ class PriceUpdater {
 
     async fetchDivinePrice() {
         try {
-            const data = await this.fetchWithCors(`${this.poeNinjaBaseUrl}/currencyoverview?league=${this.league}&type=Currency`);
+            const url = `${this.poeNinjaBaseUrl}/currencyoverview?league=${this.league}&type=Currency`;
+            console.log(`Fetching divine price from: ${url}`);
+            
+            const data = await this.fetchWithCors(url);
+            
+            if (!data || !data.lines) {
+                console.error('Invalid response format:', data);
+                throw new Error('Invalid response format from poe.ninja API');
+            }
+            
             const divineOrb = data.lines.find(currency => currency.currencyTypeName === 'Divine Orb');
-            return divineOrb ? divineOrb.chaosEquivalent : 0;
+            
+            if (!divineOrb) {
+                console.error('Divine Orb not found in response:', data.lines);
+                throw new Error('Divine Orb not found in response');
+            }
+            
+            console.log(`Found Divine Orb price: ${divineOrb.chaosEquivalent} chaos`);
+            return divineOrb.chaosEquivalent;
         } catch (error) {
             console.error('Error fetching divine price:', error);
             throw error;
@@ -1075,16 +1106,76 @@ class PriceUpdater {
         }
     }
 
+    loadFromCache() {
+        try {
+            const cachedData = localStorage.getItem(this.cacheKey);
+            const expiryTime = localStorage.getItem(this.cacheExpiryKey);
+            
+            if (!cachedData || !expiryTime) {
+                console.log('No cached data found');
+                return false;
+            }
+            
+            const now = new Date().getTime();
+            const expiry = parseInt(expiryTime, 10);
+            
+            if (now > expiry) {
+                console.log('Cache expired');
+                return false;
+            }
+            
+            this.priceData = JSON.parse(cachedData);
+            console.log('Loaded price data from cache');
+            return true;
+        } catch (error) {
+            console.error('Error loading from cache:', error);
+            return false;
+        }
+    }
+    
+    saveToCache() {
+        try {
+            if (!this.priceData) {
+                console.error('No price data to cache');
+                return false;
+            }
+            
+            const expiryTime = new Date().getTime() + this.cacheDuration;
+            
+            localStorage.setItem(this.cacheKey, JSON.stringify(this.priceData));
+            localStorage.setItem(this.cacheExpiryKey, expiryTime.toString());
+            
+            console.log(`Cached price data until ${new Date(expiryTime).toLocaleString()}`);
+            return true;
+        } catch (error) {
+            console.error('Error saving to cache:', error);
+            return false;
+        }
+    }
+
     async updatePrices() {
         try {
+            // Try to load from cache first
+            if (this.loadFromCache()) {
+                console.log('Using cached price data');
+                this.updatePriceDataDisplay();
+                return this.priceData;
+            }
+            
+            // Update status
+            this.updateStatus('Fetching divine price...');
+            
             // Get divine price
             const divinePrice = await this.fetchDivinePrice();
             console.log(`Current Divine price: ${divinePrice} chaos`);
-
+            
+            // Update status
+            this.updateStatus('Fetching unique items...');
+            
             // Get unique items
             const items = await this.fetchUniqueItems();
             console.log(`Fetched ${items.length} unique items`);
-
+            
             // Process items
             const uniqueItems = items.map(item => {
                 // Convert divine price to chaos if needed
@@ -1092,34 +1183,35 @@ class PriceUpdater {
                 if (item.divineValue > 0) {
                     priceInChaos = item.divineValue * divinePrice;
                 }
-
+                
                 // Get dust value from embedded DUST_VALUES object
                 const dustValue = DUST_VALUES[item.name] || 0;
-
+                
                 return {
                     name: item.name,
                     chaosValue: priceInChaos,
                     dustValue: dustValue
                 };
             });
-
+            
             // Create the price data structure
             this.priceData = {
-                lastUpdated: new Date().toISOString().split('T')[0],
+                lastUpdated: new Date().toISOString(),
                 divinePrice: divinePrice,
                 uniqueItems: uniqueItems
             };
-
-            // Save to localStorage for persistence
-            localStorage.setItem('poePriceData', JSON.stringify(this.priceData));
             
-            // Update the price data display if it exists
+            // Save to cache
+            this.saveToCache();
+            
+            // Update the price data display
             this.updatePriceDataDisplay();
-
-            console.log('Price data has been updated and saved to localStorage');
+            
+            console.log('Price data has been updated');
             return this.priceData;
         } catch (error) {
             console.error('Error updating prices:', error);
+            this.updateStatus(`Error updating prices: ${error.message}`, 'error');
             throw error;
         }
     }
@@ -1142,7 +1234,7 @@ class PriceUpdater {
         
         // Add last updated date
         const lastUpdated = document.createElement('p');
-        lastUpdated.textContent = `Last Updated: ${this.priceData.lastUpdated}`;
+        lastUpdated.textContent = `Last Updated: ${new Date(this.priceData.lastUpdated).toLocaleString()}`;
         card.appendChild(lastUpdated);
         
         // Add divine price
@@ -1155,54 +1247,235 @@ class PriceUpdater {
         itemCount.textContent = `Items: ${this.priceData.uniqueItems.length}`;
         card.appendChild(itemCount);
         
-        // Add download button
-        const downloadBtn = document.createElement('a');
-        downloadBtn.href = '#';
-        downloadBtn.className = 'download-btn';
-        downloadBtn.textContent = 'Download Price Data';
-        downloadBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.downloadPriceData();
+        // Create filter controls
+        const filterContainer = document.createElement('div');
+        filterContainer.className = 'filter-container';
+        
+        // Create chaos filter group
+        const chaosFilterGroup = document.createElement('div');
+        chaosFilterGroup.className = 'filter-group-container';
+        
+        const chaosGroupTitle = document.createElement('h4');
+        chaosGroupTitle.textContent = 'Chaos Value';
+        chaosFilterGroup.appendChild(chaosGroupTitle);
+        
+        // Create min chaos filter
+        const minChaosFilterContainer = document.createElement('div');
+        minChaosFilterContainer.className = 'filter-group';
+        
+        const minChaosLabel = document.createElement('label');
+        minChaosLabel.textContent = 'Min:';
+        minChaosLabel.htmlFor = 'min-chaos-filter';
+        
+        const minChaosInput = document.createElement('input');
+        minChaosInput.type = 'number';
+        minChaosInput.id = 'min-chaos-filter';
+        minChaosInput.min = '0';
+        minChaosInput.step = '1';
+        minChaosInput.placeholder = 'No min';
+        
+        minChaosFilterContainer.appendChild(minChaosLabel);
+        minChaosFilterContainer.appendChild(minChaosInput);
+        
+        // Create max chaos filter
+        const maxChaosFilterContainer = document.createElement('div');
+        maxChaosFilterContainer.className = 'filter-group';
+        
+        const maxChaosLabel = document.createElement('label');
+        maxChaosLabel.textContent = 'Max:';
+        maxChaosLabel.htmlFor = 'max-chaos-filter';
+        
+        const maxChaosInput = document.createElement('input');
+        maxChaosInput.type = 'number';
+        maxChaosInput.id = 'max-chaos-filter';
+        maxChaosInput.min = '0';
+        maxChaosInput.step = '1';
+        maxChaosInput.placeholder = 'No max';
+        
+        maxChaosFilterContainer.appendChild(maxChaosLabel);
+        maxChaosFilterContainer.appendChild(maxChaosInput);
+        
+        // Add chaos filters to group
+        chaosFilterGroup.appendChild(minChaosFilterContainer);
+        chaosFilterGroup.appendChild(maxChaosFilterContainer);
+        
+        // Create dust filter group
+        const dustFilterGroup = document.createElement('div');
+        dustFilterGroup.className = 'filter-group-container';
+        
+        const dustGroupTitle = document.createElement('h4');
+        dustGroupTitle.textContent = 'Dust Value';
+        dustFilterGroup.appendChild(dustGroupTitle);
+        
+        // Create min dust filter
+        const minDustFilterContainer = document.createElement('div');
+        minDustFilterContainer.className = 'filter-group';
+        
+        const minDustLabel = document.createElement('label');
+        minDustLabel.textContent = 'Min:';
+        minDustLabel.htmlFor = 'min-dust-filter';
+        
+        const minDustInput = document.createElement('input');
+        minDustInput.type = 'number';
+        minDustInput.id = 'min-dust-filter';
+        minDustInput.min = '0';
+        minDustInput.step = '1';
+        minDustInput.placeholder = 'No min';
+        
+        minDustFilterContainer.appendChild(minDustLabel);
+        minDustFilterContainer.appendChild(minDustInput);
+        
+        // Create max dust filter
+        const maxDustFilterContainer = document.createElement('div');
+        maxDustFilterContainer.className = 'filter-group';
+        
+        const maxDustLabel = document.createElement('label');
+        maxDustLabel.textContent = 'Max:';
+        maxDustLabel.htmlFor = 'max-dust-filter';
+        
+        const maxDustInput = document.createElement('input');
+        maxDustInput.type = 'number';
+        maxDustInput.id = 'max-dust-filter';
+        maxDustInput.min = '0';
+        maxDustInput.step = '1';
+        maxDustInput.placeholder = 'No max';
+        
+        maxDustFilterContainer.appendChild(maxDustLabel);
+        maxDustFilterContainer.appendChild(maxDustInput);
+        
+        // Add dust filters to group
+        dustFilterGroup.appendChild(minDustFilterContainer);
+        dustFilterGroup.appendChild(maxDustFilterContainer);
+        
+        // Add filter groups to container
+        filterContainer.appendChild(chaosFilterGroup);
+        filterContainer.appendChild(dustFilterGroup);
+        
+        // Add filter container to card
+        card.appendChild(filterContainer);
+        
+        // Create table for items sorted by dust per chaos
+        const table = document.createElement('table');
+        table.className = 'items-table';
+        
+        // Add table header
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        
+        const headers = ['Item Name', 'Chaos Value', 'Dust Value', 'Dust/Chaos Ratio'];
+        headers.forEach(headerText => {
+            const th = document.createElement('th');
+            th.textContent = headerText;
+            headerRow.appendChild(th);
         });
-        card.appendChild(downloadBtn);
+        
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+        
+        // Add table body with sorted items
+        const tbody = document.createElement('tbody');
+        tbody.id = 'items-table-body';
+        
+        // Function to update the table with filtered items
+        const updateTable = () => {
+            // Clear table body
+            tbody.innerHTML = '';
+            
+            // Get filter values
+            const minChaos = parseFloat(minChaosInput.value) || 0;
+            const maxChaos = parseFloat(maxChaosInput.value) || Infinity;
+            const minDust = parseFloat(minDustInput.value) || 0;
+            const maxDust = parseFloat(maxDustInput.value) || Infinity;
+            
+            // Sort items by dust per chaos ratio (highest first)
+            const sortedItems = [...this.priceData.uniqueItems].sort((a, b) => {
+                // Calculate dust per chaos ratio
+                const ratioA = a.chaosValue > 0 ? a.dustValue / a.chaosValue : 0;
+                const ratioB = b.chaosValue > 0 ? b.dustValue / b.chaosValue : 0;
+                
+                // Sort in descending order
+                return ratioB - ratioA;
+            });
+            
+            // Filter and add items to table
+            let filteredCount = 0;
+            
+            sortedItems.forEach((item, index) => {
+                // Apply filters
+                if (item.chaosValue < minChaos || item.chaosValue > maxChaos || 
+                    item.dustValue < minDust || item.dustValue > maxDust) {
+                    return; // Skip this item
+                }
+                
+                filteredCount++;
+                
+                const row = document.createElement('tr');
+                
+                // Add alternating row class
+                if (index % 2 === 1) {
+                    row.classList.add('alternate-row');
+                }
+                
+                // Calculate dust per chaos ratio
+                const ratio = item.chaosValue > 0 ? (item.dustValue / item.chaosValue) : 0;
+                
+                // Create cells
+                const nameCell = document.createElement('td');
+                nameCell.textContent = item.name;
+                
+                const chaosCell = document.createElement('td');
+                chaosCell.textContent = item.chaosValue.toFixed(2);
+                
+                const dustCell = document.createElement('td');
+                dustCell.textContent = item.dustValue.toFixed(2);
+                
+                const ratioCell = document.createElement('td');
+                ratioCell.textContent = ratio.toFixed(2);
+                
+                // Add color coding to ratio cell based on value
+                if (ratio > 2) {
+                    ratioCell.classList.add('high-ratio');
+                } else if (ratio > 1) {
+                    ratioCell.classList.add('medium-ratio');
+                } else if (ratio < 0.5) {
+                    ratioCell.classList.add('low-ratio');
+                }
+                
+                // Add cells to row
+                row.appendChild(nameCell);
+                row.appendChild(chaosCell);
+                row.appendChild(dustCell);
+                row.appendChild(ratioCell);
+                
+                // Add row to table
+                tbody.appendChild(row);
+            });
+            
+            // Update item count
+            itemCount.textContent = `Items: ${filteredCount} of ${this.priceData.uniqueItems.length}`;
+        };
+        
+        // Add event listeners to filters
+        minChaosInput.addEventListener('input', updateTable);
+        maxChaosInput.addEventListener('input', updateTable);
+        minDustInput.addEventListener('input', updateTable);
+        maxDustInput.addEventListener('input', updateTable);
+        
+        // Initial table update
+        updateTable();
+        
+        table.appendChild(tbody);
+        card.appendChild(table);
         
         priceDataDisplay.appendChild(card);
     }
 
-    downloadPriceData() {
-        if (!this.priceData) {
-            console.error('No price data available to download');
-            return;
+    updateStatus(message, type = 'info') {
+        const statusElement = document.getElementById('price-status');
+        if (statusElement) {
+            statusElement.textContent = message;
+            statusElement.className = type;
         }
-        
-        // Convert to JSON string with nice formatting
-        const jsonString = JSON.stringify(this.priceData, null, 2);
-
-        // Create a download link
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'price_data.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-
-    loadFromLocalStorage() {
-        try {
-            const savedData = localStorage.getItem('poePriceData');
-            if (savedData) {
-                this.priceData = JSON.parse(savedData);
-                console.log('Loaded price data from localStorage');
-                this.updatePriceDataDisplay();
-                return true;
-            }
-        } catch (error) {
-            console.error('Error loading from localStorage:', error);
-        }
-        return false;
     }
 }
 
@@ -1212,41 +1485,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('Initializing price updater...');
         const updater = new PriceUpdater();
         
-        // Get status element
-        const statusElement = document.getElementById('price-status');
-        if (!statusElement) return;
+        // Update status
+        updater.updateStatus('Loading price data...', 'info');
         
-        // Try to load from localStorage first
-        const loadedFromStorage = updater.loadFromLocalStorage();
+        // Try to load from cache first, then update if needed
+        await updater.updatePrices();
         
-        if (loadedFromStorage) {
-            statusElement.textContent = 'Price data loaded from cache. Updating in background...';
-            statusElement.className = 'updating';
-            
-            // Update in the background
-            updater.updatePrices().catch(error => {
-                console.error('Background update failed:', error);
-                statusElement.textContent = 'Background update failed. Using cached data.';
-                statusElement.className = 'error';
-            });
-        } else {
-            // No cached data, update now
-            statusElement.textContent = 'Updating price data...';
-            statusElement.className = 'updating';
-            
-            await updater.updatePrices();
-            
-            statusElement.textContent = 'Price data updated successfully!';
-            statusElement.className = 'success';
-        }
+        // Update status
+        updater.updateStatus('Price data loaded successfully!', 'success');
     } catch (error) {
         console.error('Error initializing price updater:', error);
         
         // Show error status
-        const statusElement = document.getElementById('price-status');
-        if (statusElement) {
-            statusElement.textContent = 'Failed to update price data. Please try again later.';
-            statusElement.className = 'error';
-        }
+        const updater = new PriceUpdater();
+        updater.updateStatus(`Failed to initialize: ${error.message}`, 'error');
     }
 }); 
