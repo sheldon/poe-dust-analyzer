@@ -1,13 +1,26 @@
 class PriceUpdater {
     constructor() {
         this.poeNinjaBaseUrl = 'https://poe.ninja/api/data';
+        this.corsProxyUrl = 'https://corsproxy.io/?';
         this.priceDataUrl = 'data/price_data.json';
+    }
+
+    async fetchWithCors(url) {
+        try {
+            const response = await fetch(this.corsProxyUrl + encodeURIComponent(url));
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            throw error;
+        }
     }
 
     async fetchDivinePrice() {
         try {
-            const response = await fetch(`${this.poeNinjaBaseUrl}/currencyoverview?league=Affliction`);
-            const data = await response.json();
+            const data = await this.fetchWithCors(`${this.poeNinjaBaseUrl}/currencyoverview?league=Affliction`);
             const divineOrb = data.lines.find(currency => currency.currencyTypeName === 'Divine Orb');
             return divineOrb ? divineOrb.chaosEquivalent : 0;
         } catch (error) {
@@ -18,8 +31,7 @@ class PriceUpdater {
 
     async fetchUniqueItems() {
         try {
-            const response = await fetch(`${this.poeNinjaBaseUrl}/itemoverview?league=Affliction&type=UniqueWeapon,UniqueArmour,UniqueAccessory`);
-            const data = await response.json();
+            const data = await this.fetchWithCors(`${this.poeNinjaBaseUrl}/itemoverview?league=Affliction&type=UniqueWeapon,UniqueArmour,UniqueAccessory`);
             return data.lines;
         } catch (error) {
             console.error('Error fetching unique items:', error);

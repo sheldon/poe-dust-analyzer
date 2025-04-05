@@ -1,0 +1,53 @@
+.loading {
+    display: none;
+    text-align: center;
+    padding: 20px;
+}
+
+.results-table {
+    margin-top: 20px;
+}
+
+.error-message {
+    color: red;
+    display: none;
+    margin-top: 10px;
+}
+
+/* Add some spacing between cards */
+.card {
+    margin-bottom: 1.5rem;
+}
+
+/* Style the update button */
+.btn-secondary {
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+    border-color: #545b62;
+}
+
+/* Style the textarea */
+textarea.form-control {
+    font-family: monospace;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* Style the table */
+.table-responsive {
+    margin-top: 1rem;
+}
+
+.table th {
+    background-color: #f8f9fa;
+}
+
+/* Style loading spinner */
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+} 
