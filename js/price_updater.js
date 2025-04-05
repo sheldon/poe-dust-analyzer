@@ -4,6 +4,7 @@ class PriceUpdater {
         this.corsProxyUrl = 'https://corsproxy.io/?';
         this.priceDataUrl = 'data/price_data.json';
         this.league = 'Phrecia';
+        this.priceData = null;
     }
 
     async fetchWithCors(url) {
@@ -78,31 +79,110 @@ class PriceUpdater {
             });
 
             // Create the price data structure
-            const priceData = {
+            this.priceData = {
                 lastUpdated: new Date().toISOString().split('T')[0],
                 uniqueItems: uniqueItems
             };
 
-            // Convert to JSON string with nice formatting
-            const jsonString = JSON.stringify(priceData, null, 2);
+            // Save to localStorage for persistence
+            localStorage.setItem('poePriceData', JSON.stringify(this.priceData));
+            
+            // Update the price data display if it exists
+            this.updatePriceDataDisplay();
 
-            // Create a download link
-            const blob = new Blob([jsonString], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'price_data.json';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            console.log('Price data has been downloaded. Replace the contents of data/price_data.json with this file.');
-            return priceData;
+            console.log('Price data has been updated and saved to localStorage');
+            return this.priceData;
         } catch (error) {
             console.error('Error updating prices:', error);
             throw error;
         }
+    }
+
+    updatePriceDataDisplay() {
+        // Create or update the price data display
+        let priceDataContainer = document.getElementById('priceDataContainer');
+        
+        if (!priceDataContainer) {
+            priceDataContainer = document.createElement('div');
+            priceDataContainer.id = 'priceDataContainer';
+            priceDataContainer.className = 'card mb-4';
+            
+            const cardBody = document.createElement('div');
+            cardBody.className = 'card-body';
+            
+            const title = document.createElement('h5');
+            title.className = 'card-title';
+            title.textContent = 'Current Price Data';
+            
+            const lastUpdated = document.createElement('p');
+            lastUpdated.className = 'text-muted';
+            lastUpdated.id = 'lastUpdated';
+            
+            const itemCount = document.createElement('p');
+            itemCount.className = 'text-muted';
+            itemCount.id = 'itemCount';
+            
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'btn btn-sm btn-secondary mt-2';
+            downloadBtn.textContent = 'Download Price Data';
+            downloadBtn.addEventListener('click', () => this.downloadPriceData());
+            
+            cardBody.appendChild(title);
+            cardBody.appendChild(lastUpdated);
+            cardBody.appendChild(itemCount);
+            cardBody.appendChild(downloadBtn);
+            priceDataContainer.appendChild(cardBody);
+            
+            // Insert after the analyze card
+            const analyzeCard = document.querySelector('.card');
+            if (analyzeCard) {
+                analyzeCard.parentNode.insertBefore(priceDataContainer, analyzeCard.nextSibling);
+            } else {
+                document.body.appendChild(priceDataContainer);
+            }
+        }
+        
+        // Update the display with current data
+        if (this.priceData) {
+            document.getElementById('lastUpdated').textContent = `Last Updated: ${this.priceData.lastUpdated}`;
+            document.getElementById('itemCount').textContent = `Items: ${this.priceData.uniqueItems.length}`;
+        }
+    }
+
+    downloadPriceData() {
+        if (!this.priceData) {
+            console.error('No price data available to download');
+            return;
+        }
+        
+        // Convert to JSON string with nice formatting
+        const jsonString = JSON.stringify(this.priceData, null, 2);
+
+        // Create a download link
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'price_data.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    loadFromLocalStorage() {
+        try {
+            const savedData = localStorage.getItem('poePriceData');
+            if (savedData) {
+                this.priceData = JSON.parse(savedData);
+                console.log('Loaded price data from localStorage');
+                this.updatePriceDataDisplay();
+                return true;
+            }
+        } catch (error) {
+            console.error('Error loading from localStorage:', error);
+        }
+        return false;
     }
 }
 
@@ -121,7 +201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const statusText = document.createElement('p');
         statusText.className = 'mb-0';
-        statusText.textContent = 'Updating price data...';
+        statusText.textContent = 'Loading price data...';
         
         cardBody.appendChild(statusText);
         statusContainer.appendChild(cardBody);
@@ -134,12 +214,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.body.appendChild(statusContainer);
         }
         
-        // Update prices
-        await updater.updatePrices();
+        // Try to load from localStorage first
+        const loadedFromStorage = updater.loadFromLocalStorage();
         
-        // Update status
-        statusText.textContent = 'Price data updated successfully!';
-        statusText.className = 'mb-0 text-success';
+        if (loadedFromStorage) {
+            statusText.textContent = 'Price data loaded from cache. Updating in background...';
+            statusText.className = 'mb-0 text-info';
+            
+            // Update in the background
+            updater.updatePrices().catch(error => {
+                console.error('Background update failed:', error);
+            });
+        } else {
+            // No cached data, update now
+            statusText.textContent = 'Updating price data...';
+            await updater.updatePrices();
+            statusText.textContent = 'Price data updated successfully!';
+            statusText.className = 'mb-0 text-success';
+        }
         
         // Remove status after 5 seconds
         setTimeout(() => {
