@@ -5,6 +5,39 @@ class PriceUpdater {
         this.priceDataUrl = 'data/price_data.json';
         this.league = 'Phrecia';
         this.priceData = null;
+        this.dustValues = null;
+    }
+
+    async loadDustValues() {
+        try {
+            const response = await fetch('data/dust-values.csv');
+            const csvText = await response.text();
+            
+            // Parse CSV
+            const lines = csvText.split('\n');
+            const headers = lines[0].split(',');
+            const nameIndex = headers.indexOf('name');
+            const dustValIndex = headers.indexOf('dustVal');
+            
+            this.dustValues = {};
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                const values = line.split(',');
+                const name = values[nameIndex];
+                const dustVal = parseFloat(values[dustValIndex]);
+                
+                if (name && !isNaN(dustVal)) {
+                    this.dustValues[name] = dustVal;
+                }
+            }
+            
+            console.log(`Loaded ${Object.keys(this.dustValues).length} dust values`);
+        } catch (error) {
+            console.error('Error loading dust values:', error);
+            throw error;
+        }
     }
 
     async fetchWithCors(url) {
@@ -56,6 +89,9 @@ class PriceUpdater {
 
     async updatePrices() {
         try {
+            // Load dust values first
+            await this.loadDustValues();
+            
             // Get divine price
             const divinePrice = await this.fetchDivinePrice();
             console.log(`Current Divine price: ${divinePrice} chaos`);
@@ -72,15 +108,20 @@ class PriceUpdater {
                     priceInChaos = item.divineValue * divinePrice;
                 }
 
+                // Get dust value
+                const dustValue = this.dustValues[item.name] || 0;
+
                 return {
                     name: item.name,
-                    chaosValue: priceInChaos
+                    chaosValue: priceInChaos,
+                    dustValue: dustValue
                 };
             });
 
             // Create the price data structure
             this.priceData = {
                 lastUpdated: new Date().toISOString().split('T')[0],
+                divinePrice: divinePrice,
                 uniqueItems: uniqueItems
             };
 
@@ -118,6 +159,11 @@ class PriceUpdater {
         const lastUpdated = document.createElement('p');
         lastUpdated.textContent = `Last Updated: ${this.priceData.lastUpdated}`;
         card.appendChild(lastUpdated);
+        
+        // Add divine price
+        const divinePrice = document.createElement('p');
+        divinePrice.textContent = `Divine Price: ${this.priceData.divinePrice} chaos`;
+        card.appendChild(divinePrice);
         
         // Add item count
         const itemCount = document.createElement('p');
